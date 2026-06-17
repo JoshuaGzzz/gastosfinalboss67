@@ -10,6 +10,7 @@ interface SpendingRecord {
   id: number
   timestamp: string
   reason: string
+  prev_start_time: number | null
 }
 
 function formatElapsed(ms: number) {
@@ -25,6 +26,36 @@ function formatElapsed(ms: number) {
   const months = Math.floor(totalDays / 30)
   const pad = (n: number) => String(n).padStart(2, '0')
   return { months: pad(months), weeks: pad(weeks), days: pad(days), hours: pad(hours), minutes: pad(minutes), seconds: pad(seconds) }
+}
+
+function formatStreakDuration(ms: number) {
+  const totalSeconds = Math.floor(ms / 1000)
+  const totalMinutes = Math.floor(totalSeconds / 60)
+  const totalHours = Math.floor(totalMinutes / 60)
+  const totalDays = Math.floor(totalHours / 24)
+  const months = Math.floor(totalDays / 30)
+  const weeks = Math.floor((totalDays % 30) / 7)
+  const days = totalDays % 7
+
+  const parts = []
+  if (months > 0) parts.push(`${months}mo`)
+  if (weeks > 0) parts.push(`${weeks}w`)
+  if (days > 0) parts.push(`${days}d`)
+  if (parts.length === 0) parts.push('< 1d')
+  return parts.join(' ')
+}
+
+function getLongestStreak(records: SpendingRecord[], currentStartTime: number) {
+  const currentMs = Date.now() - currentStartTime
+  const pastStreaks = records
+    .filter(r => r.prev_start_time != null)
+    .map(r => {
+      const endMs = new Date(r.timestamp).getTime()
+      return endMs - r.prev_start_time!
+    })
+    .filter(ms => ms > 0)
+  const allStreaks = [...pastStreaks, currentMs]
+  return Math.max(...allStreaks)
 }
 
 function App() {
@@ -60,23 +91,17 @@ function App() {
   const handleReset = async () => {
     const trimmed = reason.trim()
     if (!trimmed) return
-
     const now = Date.now()
     const timestamp = new Date(now).toLocaleString('en-PH', {
       year: 'numeric', month: 'long', day: 'numeric',
       hour: '2-digit', minute: '2-digit', second: '2-digit'
     })
-
     await Promise.all([
       supabase.from('timer_state').update({ start_time: now }).eq('id', 1),
-      supabase.from('spending_records').insert({ timestamp, reason: trimmed })
+      supabase.from('spending_records').insert({ timestamp, reason: trimmed, prev_start_time: startTime })
     ])
-
     const { data: newRecords } = await supabase
-      .from('spending_records')
-      .select('*')
-      .order('created_at', { ascending: false })
-
+      .from('spending_records').select('*').order('created_at', { ascending: false })
     setStartTime(now)
     setElapsed(0)
     setRecords(newRecords ?? [])
@@ -85,6 +110,8 @@ function App() {
 
   const { months, weeks, days, hours, minutes, seconds } = formatElapsed(elapsed)
   const canReset = reason.trim().length > 0
+  const longestStreakMs = loading ? 0 : getLongestStreak(records, startTime)
+  const isCurrentStreakBest = elapsed >= longestStreakMs && !loading
 
   if (loading) {
     return (
@@ -96,24 +123,19 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-mono flex flex-col">
-
-      {/* NAV */}
       <nav className="border-b border-zinc-800 px-6 py-3 flex justify-end gap-4">
-        <Link to="/" className="text-xs uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Tracker</Link>
+        <Link to="/" className="text-xs uppercase tracking-widest text-white transition-colors">Tracker</Link>
         <Link to="/bets" className="text-xs uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Betting Pool</Link>
       </nav>
-
-      {/* HEADER */}
       <header className="border-b border-zinc-800 py-8 px-6 text-center">
-        <h1 className="text-4xl font-black tracking-tight uppercase text-white leading-none">
-          Joseph Gastos Tracker
-        </h1>
-        <p className="mt-3 text-zinc-400 text-base tracking-widest uppercase text-sm">
-          Joseph has not spent money since:
-        </p>
+        <h1 className="text-4xl font-black tracking-tight uppercase text-white leading-none">Joseph Gastos Tracker</h1>
+        <p className="mt-3 text-zinc-400 tracking-widest uppercase text-sm">Joseph has not spent money since:</p>
       </header>
-
-      {/* TIMER */}
+      <div className={`px-6 py-3 text-center text-xs uppercase tracking-widest border-b border-zinc-800 ${isCurrentStreakBest ? 'bg-green-950 text-green-400' : 'text-zinc-500'}`}>
+        {isCurrentStreakBest
+          ? `🏆 Current streak is the best ever — ${formatStreakDuration(elapsed)}`
+          : `🏆 Longest streak: ${formatStreakDuration(longestStreakMs)}`}
+      </div>
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
         <div className="flex gap-2 sm:gap-4 items-end">
           {[
@@ -126,7 +148,7 @@ function App() {
           ].map((unit, i, arr) => (
             <div key={unit.label} className="flex items-end gap-2 sm:gap-4">
               <div className="flex flex-col items-center">
-                <div className="text-5xl sm:text-7xl md:text-8xl font-black tabular-nums text-white leading-none tracking-tight">
+                <div className={`text-5xl sm:text-7xl md:text-8xl font-black tabular-nums leading-none tracking-tight ${isCurrentStreakBest ? 'text-green-400' : 'text-white'}`}>
                   {unit.value}
                 </div>
                 <span className="text-zinc-500 text-xs uppercase tracking-widest mt-2">{unit.label}</span>
@@ -138,12 +160,8 @@ function App() {
           ))}
         </div>
       </main>
-
-      {/* RESET SECTION */}
       <section className="border-t border-zinc-800 px-6 py-8 max-w-2xl mx-auto w-full">
-        <p className="text-xs uppercase tracking-widest text-zinc-500 mb-3">
-          State your reason before resetting
-        </p>
+        <p className="text-xs uppercase tracking-widest text-zinc-500 mb-3">State your reason before resetting</p>
         <Textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -155,16 +173,12 @@ function App() {
           onClick={handleReset}
           disabled={!canReset}
           className={`w-full font-black uppercase tracking-widest text-base py-6 transition-all duration-200 ${
-            canReset
-              ? 'bg-red-600 hover:bg-red-500 text-white cursor-pointer'
-              : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+            canReset ? 'bg-red-600 hover:bg-red-500 text-white cursor-pointer' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
           }`}
         >
           {canReset ? '⚠ Reset Timer' : 'Enter a reason first'}
         </Button>
       </section>
-
-      {/* HISTORY TABLE */}
       {records.length > 0 && (
         <section className="border-t border-zinc-800 px-6 py-8 max-w-4xl mx-auto w-full">
           <h2 className="text-xs uppercase tracking-widest text-zinc-500 mb-4">Spending History</h2>
@@ -174,21 +188,29 @@ function App() {
                 <TableRow className="border-zinc-800 hover:bg-transparent">
                   <TableHead className="text-zinc-500 font-bold uppercase text-xs tracking-widest w-[220px]">Date & Time</TableHead>
                   <TableHead className="text-zinc-500 font-bold uppercase text-xs tracking-widest">Reason</TableHead>
+                  <TableHead className="text-zinc-500 font-bold uppercase text-xs tracking-widest text-right">Streak Duration</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {records.map((record) => (
-                  <TableRow key={record.id} className="border-zinc-800 hover:bg-zinc-900/50">
-                    <TableCell className="text-zinc-400 text-xs align-top py-3 whitespace-nowrap">{record.timestamp}</TableCell>
-                    <TableCell className="text-zinc-200 text-sm py-3">{record.reason}</TableCell>
-                  </TableRow>
-                ))}
+                {records.map((record) => {
+                  const streakMs = record.prev_start_time
+                    ? new Date(record.timestamp).getTime() - record.prev_start_time
+                    : null
+                  return (
+                    <TableRow key={record.id} className="border-zinc-800 hover:bg-zinc-900/50">
+                      <TableCell className="text-zinc-400 text-xs align-top py-3 whitespace-nowrap">{record.timestamp}</TableCell>
+                      <TableCell className="text-zinc-200 text-sm py-3">{record.reason}</TableCell>
+                      <TableCell className="text-zinc-400 text-xs py-3 text-right whitespace-nowrap">
+                        {streakMs ? formatStreakDuration(streakMs) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
         </section>
       )}
-
       <footer className="py-4 text-center text-zinc-700 text-xs tracking-widest border-t border-zinc-900">
         ACCOUNTABILITY IS FOREVER
       </footer>
