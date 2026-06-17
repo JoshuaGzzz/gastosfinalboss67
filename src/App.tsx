@@ -6,10 +6,21 @@ import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import './App.css'
 
+const KPOP_CATEGORIES = [
+  'Albums',
+  'Merch',
+  'Concerts / Events',
+  'Photocards',
+  'Lightsticks',
+  'Weverse / Digital',
+  'Custom',
+]
+
 interface SpendingRecord {
   id: number
   timestamp: string
   reason: string
+  category: string | null
   prev_start_time: number | null
 }
 
@@ -58,11 +69,36 @@ function getLongestStreak(records: SpendingRecord[], currentStartTime: number) {
   return Math.max(...allStreaks)
 }
 
+function getCategoryBreakdown(records: SpendingRecord[]) {
+  const counts: Record<string, number> = {}
+  for (const r of records) {
+    const cat = r.category ?? 'Uncategorized'
+    counts[cat] = (counts[cat] ?? 0) + 1
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'Albums': 'bg-pink-500',
+  'Merch': 'bg-purple-500',
+  'Concerts / Events': 'bg-yellow-500',
+  'Photocards': 'bg-blue-500',
+  'Lightsticks': 'bg-cyan-500',
+  'Weverse / Digital': 'bg-green-500',
+  'Uncategorized': 'bg-zinc-500',
+}
+
+function getCategoryColor(cat: string) {
+  return CATEGORY_COLORS[cat] ?? 'bg-rose-400'
+}
+
 function App() {
   const [startTime, setStartTime] = useState<number>(Date.now())
   const [records, setRecords] = useState<SpendingRecord[]>([])
   const [elapsed, setElapsed] = useState(0)
   const [reason, setReason] = useState('')
+  const [category, setCategory] = useState(KPOP_CATEGORIES[0])
+  const [customCategory, setCustomCategory] = useState('')
   const [loading, setLoading] = useState(true)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -88,9 +124,12 @@ function App() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [startTime, loading])
 
+  const finalCategory = category === 'Custom' ? customCategory.trim() : category
+
   const handleReset = async () => {
     const trimmed = reason.trim()
     if (!trimmed) return
+    if (category === 'Custom' && !customCategory.trim()) return
     const now = Date.now()
     const timestamp = new Date(now).toLocaleString('en-PH', {
       year: 'numeric', month: 'long', day: 'numeric',
@@ -98,7 +137,12 @@ function App() {
     })
     await Promise.all([
       supabase.from('timer_state').update({ start_time: now }).eq('id', 1),
-      supabase.from('spending_records').insert({ timestamp, reason: trimmed, prev_start_time: startTime })
+      supabase.from('spending_records').insert({
+        timestamp,
+        reason: trimmed,
+        category: finalCategory,
+        prev_start_time: startTime
+      })
     ])
     const { data: newRecords } = await supabase
       .from('spending_records').select('*').order('created_at', { ascending: false })
@@ -106,12 +150,16 @@ function App() {
     setElapsed(0)
     setRecords(newRecords ?? [])
     setReason('')
+    setCategory(KPOP_CATEGORIES[0])
+    setCustomCategory('')
   }
 
   const { months, weeks, days, hours, minutes, seconds } = formatElapsed(elapsed)
-  const canReset = reason.trim().length > 0
+  const canReset = reason.trim().length > 0 && (category !== 'Custom' || customCategory.trim().length > 0)
   const longestStreakMs = loading ? 0 : getLongestStreak(records, startTime)
   const isCurrentStreakBest = elapsed >= longestStreakMs && !loading
+  const breakdown = getCategoryBreakdown(records)
+  const totalResets = records.length
 
   if (loading) {
     return (
@@ -127,15 +175,18 @@ function App() {
         <Link to="/" className="text-xs uppercase tracking-widest text-white transition-colors">Tracker</Link>
         <Link to="/bets" className="text-xs uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Betting Pool</Link>
       </nav>
+
       <header className="border-b border-zinc-800 py-8 px-6 text-center">
         <h1 className="text-4xl font-black tracking-tight uppercase text-white leading-none">Joseph Gastos Tracker</h1>
         <p className="mt-3 text-zinc-400 tracking-widest uppercase text-sm">Joseph has not spent money since:</p>
       </header>
+
       <div className={`px-6 py-3 text-center text-xs uppercase tracking-widest border-b border-zinc-800 ${isCurrentStreakBest ? 'bg-green-950 text-green-400' : 'text-zinc-500'}`}>
         {isCurrentStreakBest
           ? `🏆 Current streak is the best ever — ${formatStreakDuration(elapsed)}`
           : `🏆 Longest streak: ${formatStreakDuration(longestStreakMs)}`}
       </div>
+
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
         <div className="flex gap-2 sm:gap-4 items-end">
           {[
@@ -160,8 +211,66 @@ function App() {
           ))}
         </div>
       </main>
+
+      {/* Category Breakdown */}
+      {totalResets > 0 && (
+        <section className="border-t border-zinc-800 px-6 py-8 max-w-2xl mx-auto w-full">
+          <h2 className="text-xs uppercase tracking-widest text-zinc-500 mb-4">KPop Spending Breakdown</h2>
+          <div className="flex gap-1 h-4 rounded overflow-hidden mb-4">
+            {breakdown.map(([cat, count]) => (
+              <div
+                key={cat}
+                className={`${getCategoryColor(cat)} transition-all`}
+                style={{ width: `${(count / totalResets) * 100}%` }}
+                title={`${cat}: ${count}`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {breakdown.map(([cat, count]) => (
+              <div key={cat} className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${getCategoryColor(cat)} inline-block`} />
+                <span className="text-zinc-300 text-xs">{cat}</span>
+                <span className="text-zinc-500 text-xs">×{count}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Reset Form */}
       <section className="border-t border-zinc-800 px-6 py-8 max-w-2xl mx-auto w-full">
         <p className="text-xs uppercase tracking-widest text-zinc-500 mb-3">State your reason before resetting</p>
+
+        {/* Category selector */}
+        <div className="mb-4">
+          <p className="text-xs uppercase tracking-widest text-zinc-500 mb-2">KPop Category</p>
+          <div className="flex flex-wrap gap-2">
+            {KPOP_CATEGORIES.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={`px-3 py-1 text-xs uppercase tracking-widest rounded border transition-all ${
+                  category === cat
+                    ? 'border-white text-white bg-zinc-800'
+                    : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+          {category === 'Custom' && (
+            <input
+              type="text"
+              value={customCategory}
+              onChange={e => setCustomCategory(e.target.value)}
+              placeholder="Enter custom category..."
+              className="mt-3 w-full bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 text-sm px-3 py-2 rounded font-mono focus:outline-none focus:border-red-500"
+            />
+          )}
+        </div>
+
         <Textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -179,6 +288,8 @@ function App() {
           {canReset ? '⚠ Reset Timer' : 'Enter a reason first'}
         </Button>
       </section>
+
+      {/* History Table */}
       {records.length > 0 && (
         <section className="border-t border-zinc-800 px-6 py-8 max-w-4xl mx-auto w-full">
           <h2 className="text-xs uppercase tracking-widest text-zinc-500 mb-4">Spending History</h2>
@@ -186,9 +297,10 @@ function App() {
             <Table>
               <TableHeader>
                 <TableRow className="border-zinc-800 hover:bg-transparent">
-                  <TableHead className="text-zinc-500 font-bold uppercase text-xs tracking-widest w-[220px]">Date & Time</TableHead>
+                  <TableHead className="text-zinc-500 font-bold uppercase text-xs tracking-widest w-[200px]">Date & Time</TableHead>
+                  <TableHead className="text-zinc-500 font-bold uppercase text-xs tracking-widest w-[130px]">Category</TableHead>
                   <TableHead className="text-zinc-500 font-bold uppercase text-xs tracking-widest">Reason</TableHead>
-                  <TableHead className="text-zinc-500 font-bold uppercase text-xs tracking-widest text-right">Streak Duration</TableHead>
+                  <TableHead className="text-zinc-500 font-bold uppercase text-xs tracking-widest text-right">Streak</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -196,9 +308,16 @@ function App() {
                   const streakMs = record.prev_start_time
                     ? new Date(record.timestamp).getTime() - record.prev_start_time
                     : null
+                  const cat = record.category ?? 'Uncategorized'
                   return (
                     <TableRow key={record.id} className="border-zinc-800 hover:bg-zinc-900/50">
                       <TableCell className="text-zinc-400 text-xs align-top py-3 whitespace-nowrap">{record.timestamp}</TableCell>
+                      <TableCell className="py-3 align-top">
+                        <span className={`inline-flex items-center gap-1.5 text-xs`}>
+                          <span className={`w-2 h-2 rounded-full ${getCategoryColor(cat)} inline-block flex-shrink-0`} />
+                          <span className="text-zinc-300">{cat}</span>
+                        </span>
+                      </TableCell>
                       <TableCell className="text-zinc-200 text-sm py-3">{record.reason}</TableCell>
                       <TableCell className="text-zinc-400 text-xs py-3 text-right whitespace-nowrap">
                         {streakMs ? formatStreakDuration(streakMs) : '—'}
@@ -211,6 +330,7 @@ function App() {
           </div>
         </section>
       )}
+
       <footer className="py-4 text-center text-zinc-700 text-xs tracking-widest border-t border-zinc-900">
         ACCOUNTABILITY IS FOREVER
       </footer>
