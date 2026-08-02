@@ -1,0 +1,288 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Twilight Concert — TWICE × ENHYPEN ── */
+    --background: 243 45% 8%;
+    --foreground: 260 29% 92%;
+    --card: 250 42% 14%;
+    --card-foreground: 260 29% 92%;
+    --popover: 250 42% 14%;
+    --popover-foreground: 260 29% 92%;
+
+    /* twice-peach primary */
+    --primary: 349 100% 78%;
+    --primary-foreground: 243 45% 8%;
+
+    --secondary: 250 25% 18%;
+    --secondary-foreground: 260 29% 92%;
+    --muted: 250 20% 20%;
+    --muted-foreground: 258 15% 55%;
+
+    /* holo-lilac accent */
+    --accent: 266 100% 81%;
+    --accent-foreground: 243 45% 8%;
+
+    --destructive: 349 85% 60%;
+    --destructive-foreground: 260 29% 92%;
+
+    --border: 250 25% 22%;
+    --input: 250 25% 16%;
+    --ring: 266 100% 81%;
+    --radius: 1rem;
+
+    /* Named accents */
+    --twice-peach: 349 100% 78%;
+    --en-frost: 229 100% 83%;
+    --holo-lilac: 266 100% 81%;
+  }
+}
+
+body {
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(ellipse at 25% 0%, hsla(266, 100%, 81%, 0.07), transparent 55%),
+    radial-gradient(ellipse at 75% 100%, hsla(349, 100%, 78%, 0.05), transparent 55%);
+  background-attachment: fixed;
+  color: hsl(var(--foreground));
+  font-family: 'Lexend Deca', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Typography ─────────────────────────────── */
+
+.font-display {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Gradients ──────────────────────────────── */
+
+.gradient-text {
+  background-image: linear-gradient(135deg, #FF8FA3, #C9A0FF, #A8B8FF);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gradient-fill {
+  background-image: linear-gradient(135deg, #FF8FA3, #C9A0FF);
+}
+
+/* ── Glass card ─────────────────────────────── */
+
+.glass-card {
+  background: linear-gradient(
+    180deg,
+    hsla(250, 38%, 16%, 0.75),
+    hsla(250, 38%, 12%, 0.75)
+  );
+  backdrop-filter: blur(16px);
+  border: 1px solid hsla(260, 30%, 50%, 0.12);
+}
+
+/* ── Lightstick border (signature element) ──── */
+
+.lightstick-border {
+  position: relative;
+  border-radius: var(--radius);
+}
+
+.lightstick-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    120deg,
+    #FF8FA3,
+    #C9A0FF,
+    #A8B8FF,
+    #C9A0FF,
+    #FF8FA3
+  );
+  background-size: 300% 300%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: lightstick-shift 8s ease infinite;
+  pointer-events: none;
+}
+
+.lightstick-border--glow::before {
+  padding: 2.5px;
+  filter:
+    drop-shadow(0 0 12px hsla(349, 100%, 78%, 0.4))
+    drop-shadow(0 0 28px hsla(266, 100%, 81%, 0.25));
+  animation: lightstick-shift 8s ease infinite, lightstick-pulse 3s ease-in-out infinite;
+}
+
+/* ── Avatar holo ring ───────────────────────── */
+
+.holo-ring {
+  position: relative;
+  z-index: 0;
+}
+
+.holo-ring::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #FF8FA3,
+    #C9A0FF,
+    #A8B8FF,
+    #C9A0FF,
+    #FF8FA3
+  );
+  z-index: -1;
+  animation: holo-spin 4s linear infinite;
+}
+
+/* ── Keyframes ──────────────────────────────── */
+
+@keyframes lightstick-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes lightstick-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+
+@keyframes holo-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px hsla(349, 100%, 78%, 0.5));
+  }
+  50% {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 20px hsla(266, 100%, 81%, 0.7));
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2.4s ease-in-out infinite;
+}
+
+/* ── Quiz card (worksheet signature) ────────── */
+
+.quiz-card {
+  background: linear-gradient(
+    180deg,
+    hsla(250, 38%, 16%, 0.8),
+    hsla(250, 38%, 12%, 0.85)
+  );
+  backdrop-filter: blur(20px);
+  border: 2px dashed hsla(260, 30%, 50%, 0.2);
+  border-radius: 1.25rem;
+  padding: 1.75rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.quiz-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 2.5rem;
+  bottom: 0;
+  width: 2px;
+  background: hsla(349, 100%, 78%, 0.08);
+  pointer-events: none;
+}
+
+.quiz-card-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FF8FA3, #C9A0FF);
+  color: #0C0B1D;
+}
+
+.quiz-ruled-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.quiz-rule {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsla(229, 100%, 83%, 0.08) 15%,
+    hsla(229, 100%, 83%, 0.08) 85%,
+    transparent
+  );
+}
+
+.quiz-feedback-correct {
+  background: hsla(155, 70%, 55%, 0.06);
+  border-color: hsla(155, 70%, 55%, 0.15);
+}
+
+.quiz-feedback-wrong {
+  background: hsla(349, 100%, 78%, 0.06);
+  border-color: hsla(349, 100%, 78%, 0.15);
+}
+
+/* ── Quiz animations ───────────────────────── */
+
+@keyframes quiz-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-6px) rotate(-0.5deg); }
+  30% { transform: translateX(5px) rotate(0.5deg); }
+  45% { transform: translateX(-4px); }
+  60% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+}
+
+@keyframes quiz-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.02); }
+  60% { transform: scale(0.99); }
+  100% { transform: scale(1); }
+}
+
+.animate-shake {
+  animation: quiz-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.animate-pop {
+  animation: quiz-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Reduced motion ─────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .lightstick-border::before,
+  .lightstick-border--glow::before,
+  .holo-ring::after,
+  .animate-pulse-glow,
+  .animate-shake,
+  .animate-pop {
+    animation: none;
+  }
+}
+
+/* ── Scrollbar ──────────────────────────────── */
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: hsl(var(--background)); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #C9A0FF, #A8B8FF);
+  border-radius: 999px;
+}
