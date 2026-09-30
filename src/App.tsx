@@ -6,6 +6,15 @@ import { Textarea } from '@/components/ui/textarea'
 import './App.css'
 
 const KPOP_CATEGORIES = [
+  'Food',
+  'Coffee',
+  'Drinks',
+  'Gaming',
+  'Clothes',
+  'Shopping',
+  'Transport',
+  'Bills',
+  'Subscriptions',
   'Albums',
   'Merch',
   'Concerts / Events',
@@ -18,6 +27,7 @@ const KPOP_CATEGORIES = [
 interface SpendingRecord {
   id: number
   timestamp: string
+  created_at?: string
   reason: string
   category: string | null
   prev_start_time: number | null
@@ -46,13 +56,35 @@ function formatStreakDuration(ms: number) {
   const months = Math.floor(totalDays / 30)
   const weeks = Math.floor((totalDays % 30) / 7)
   const days = totalDays % 7
+  const hours = totalHours % 24
+  const minutes = totalMinutes % 60
 
-  const parts = []
+  const parts: string[] = []
   if (months > 0) parts.push(`${months}mo`)
   if (weeks > 0) parts.push(`${weeks}w`)
   if (days > 0) parts.push(`${days}d`)
-  if (parts.length === 0) parts.push('< 1d')
-  return parts.join(' ')
+  if (hours > 0) parts.push(`${hours}h`)
+  if (minutes > 0) parts.push(`${minutes}m`)
+  if (parts.length === 0) parts.push('< 1m')
+  // keep it short: only the 3 most significant units
+  return parts.slice(0, 3).join(' ')
+}
+
+// `timestamp` is a display string like "September 29, 2026 at 07:41:20 PM",
+// which new Date() cannot parse (the " at " gives NaN). Prefer created_at (ISO),
+// and fall back to the display string with " at " removed.
+function getRecordEndMs(record: SpendingRecord): number {
+  if (record.created_at) {
+    const ms = new Date(record.created_at).getTime()
+    if (!Number.isNaN(ms)) return ms
+  }
+  return new Date(record.timestamp.replace(' at ', ' ')).getTime()
+}
+
+function getRecordStreakMs(record: SpendingRecord): number | null {
+  if (record.prev_start_time == null) return null
+  const ms = getRecordEndMs(record) - record.prev_start_time
+  return Number.isFinite(ms) && ms > 0 ? ms : null
 }
 
 function getLongestStreak(records: SpendingRecord[], currentStartTime: number) {
@@ -60,8 +92,7 @@ function getLongestStreak(records: SpendingRecord[], currentStartTime: number) {
   const pastStreaks = records
     .filter(r => r.prev_start_time != null)
     .map(r => {
-      const endMs = new Date(r.timestamp).getTime()
-      return endMs - r.prev_start_time!
+      return getRecordEndMs(r) - r.prev_start_time!
     })
     .filter(ms => ms > 0)
   const allStreaks = [...pastStreaks, currentMs]
@@ -78,6 +109,15 @@ function getCategoryBreakdown(records: SpendingRecord[]) {
 }
 
 const CATEGORY_STYLES: Record<string, string> = {
+  'Food': 'from-orange-400 to-red-500',
+  'Coffee': 'from-amber-600 to-yellow-700',
+  'Drinks': 'from-sky-400 to-cyan-500',
+  'Gaming': 'from-green-400 to-emerald-600',
+  'Clothes': 'from-fuchsia-400 to-pink-500',
+  'Shopping': 'from-yellow-300 to-orange-400',
+  'Transport': 'from-slate-400 to-blue-500',
+  'Bills': 'from-red-400 to-rose-600',
+  'Subscriptions': 'from-violet-400 to-indigo-500',
   'Albums': 'from-rose-400 to-pink-500',
   'Merch': 'from-purple-400 to-violet-500',
   'Concerts / Events': 'from-amber-300 to-rose-400',
@@ -326,9 +366,7 @@ function App() {
           <h2 className="text-xs uppercase tracking-widest text-muted-foreground mb-4 font-semibold">mine feed</h2>
           <div className="flex flex-col gap-3">
             {records.map((record) => {
-              const streakMs = record.prev_start_time
-                ? new Date(record.timestamp).getTime() - record.prev_start_time
-                : null
+              const streakMs = getRecordStreakMs(record)
               const cat = record.category ?? 'Uncategorized'
               return (
                 <div key={record.id} className="glass-card rounded-xl border border-white/5 hover:border-white/10 transition-colors overflow-hidden flex">
@@ -344,7 +382,7 @@ function App() {
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full bg-gradient-to-r ${getCategoryStyle(cat)} text-white`}>
                         #{cat.replace(/\s+/g, '')}
                       </span>
-                      {streakMs && (
+                      {streakMs != null && (
                         <span className="text-[11px] text-muted-foreground">streak broken after {formatStreakDuration(streakMs)}</span>
                       )}
                     </div>
